@@ -52,12 +52,15 @@ done
 ```
 2. Modify these configs and reconfigure services on appropriate servers:
     * chef server
-```
-sudo chef-server-ctl reconfigure
-sudo chef-manage-ctl reconfigure        
-sudo opscode-reporting-ctl reconfigure
-sudo opscode-push-jobs-server-ctl reconfigure
-```
+      ```
+      sudo chef-server-ctl reconfigure
+      
+      sudo chef-manage-ctl reconfigure
+      
+      sudo opscode-reporting-ctl reconfigure
+      
+      sudo opscode-push-jobs-server-ctl reconfigure
+      ```
     * delivery server
         ```
         sudo delivery-ctl reconfigure
