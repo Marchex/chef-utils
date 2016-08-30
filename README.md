@@ -30,8 +30,8 @@ aws ec2 create-tags --region us-west-2 --resources $AMI_ID --tags Key=Name,Value
 
 1. SSH to `vmbuilder1.sea1`
 2. Update the `~/autobot-manifests/manifests/chef/hosts.yml` file and update the `image:` value with the correct AMI for each server type.
-3. Optionally, destroy existing instances if they exist:
-**This will _TERMINATE_ running instances, if they exist**
+3. Optionally, destroy existing instances:
+    * **This will _TERMINATE_ running instances, if they exist**
     * `autobot -s chef -x chef,pulley -p destroy`
 4. Create the new servers with the new AMIs: `autobot -s chef -x chef,pulley`
 
@@ -54,8 +54,11 @@ done
     * chef server
         ```
         sudo chef-server-ctl reconfigure
+        
         sudo chef-manage-ctl reconfigure
+        
         sudo opscode-reporting-ctl reconfigure
+        
         sudo opscode-push-jobs-server-ctl reconfigure
         ```
     * delivery server
