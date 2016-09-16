@@ -14,11 +14,14 @@ echo ""
 set -e
 echo "# Looking for $dk_user in Chef"
 ssh chef.marchex.com sudo chef-server-ctl user-show "$dk_user" >/dev/null
+echo "User found"
 
 set +e
 echo "# Looking for $dk_user in Delivery"
 found=$(ssh delivery.marchex.com delivery-ctl list-users marchex | grep -c "$dk_user")
-if [[ "$found" != "1" ]]; then
+if [[ "$found" == "1" ]]; then
+    echo "User found"
+else
     echo "User $dk_user not found in Delivery"
     exit 1
 fi
