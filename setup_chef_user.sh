@@ -16,6 +16,10 @@ echo "# Looking for $dk_user in Chef"
 ssh chef.marchex.com sudo chef-server-ctl user-show "$dk_user" >/dev/null
 echo "User found"
 
+set -e
+echo "# Adding $dk_user to 'marchex' org in Chef"
+ssh chef.marchex.com sudo chef-server-ctl org-user-add marchex "$dk_user"
+
 set +e
 echo "# Looking for $dk_user in Delivery"
 found=$(ssh delivery.marchex.com delivery-ctl list-users marchex | grep -c "$dk_user")
@@ -27,8 +31,5 @@ else
 fi
 
 set -e
-echo "# Adding $dk_user to 'marchex' org in Chef"
-ssh chef.marchex.com sudo chef-server-ctl org-user-add marchex "$dk_user"
-
 echo "# Linking $dk_user in Delivery to $dk_user in GitHub"
 ssh delivery.marchex.com delivery-ctl link-github-enterprise-user marchex "$dk_user" "$dk_user"
