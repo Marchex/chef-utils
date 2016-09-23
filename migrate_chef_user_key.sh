@@ -7,8 +7,8 @@ if [[ -z "$outhouse_user" || -z "$inhouse_user" ]]; then
     exit 1
 fi
 
-# the way we want to do this is use knife-hosted to get the key, and
-# knife-prem to set it.  unfortunately, before Chef 12.4.1 we don't have
+# the way we want to do this is use knife_hosted to get the key, and
+# knife_prem to set it.  unfortunately, before Chef 12.4.1 we don't have
 # privileges to do that for normal admins.  so instead, we have a workaround
 # to use chef-server-ctl on the in-house chef.  it is not as nice to do it
 # that way, mostly because it's more commands, munges JSON files, and has race
@@ -18,8 +18,8 @@ fi
 echo 'REQUREMENTS:'
 echo '  * User has accounts on both out-house, and in-house, Chef server'
 echo '  * User wants to used key from out-house Chef, for in-house Chef'
-echo '  * `knife-hosted` command is configured to use out-house Chef'
-#echo '  * `knife-prem` command is configured to use in-house Chef'
+echo '  * `knife_hosted` command is configured to use out-house Chef'
+#echo '  * `knife_prem` command is configured to use in-house Chef'
 echo ''
 
 if [[ -z "$(type -t jq 2>/dev/null)" ]]; then
@@ -37,8 +37,8 @@ function check_knife {
     fi
 }
 
-check_knife 'knife-hosted'
-# check_knife 'knife-prem'
+check_knife 'knife_hosted'
+# check_knife 'knife_prem'
 
 
 set -e
@@ -46,14 +46,14 @@ set -e
 ## "good" way to do it
 # mytemp=$(tempfile)
 # echo "# Getting $outhouse_user's key from out-house Chef server"
-# knife-hosted user key show $outhouse_user default -F json | jq -r '.public_key' > $mytemp
+# knife_hosted user key show $outhouse_user default -F json | jq -r '.public_key' > $mytemp
 # echo "# Setting $inhouse_user's key on in-house Chef server"
-# knife-prem user key edit $inhouse_user default -p $mytemp -d
+# knife_prem user key edit $inhouse_user default -p $mytemp -d
 
 
 ## use this workaround until permissions problem solved to enable the above code to work
 echo "# Getting $outhouse_user's key from out-house Chef server"
-mytempkey=$(knife user key show $outhouse_user default -F json --config ~/.chef/knife.rb | jq -r '.public_key')
+mytempkey=$(knife_hosted user key show $outhouse_user default -F json | jq -r '.public_key')
 echo "# Getting $inhouse_user's config from in-house Chef server"
 ssh chef.marchex.com "sudo chef-server-ctl user-show $inhouse_user -F json" | jq ".public_key = \"$mytempkey\"" > $inhouse_user.json
 echo "# Copying $inhouse_user's config to in-house Chef server"
