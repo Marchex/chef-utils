@@ -55,11 +55,11 @@ set -e
 echo "# Getting $outhouse_user's key from out-house Chef server"
 mytempkey=$(knife_hosted user key show $outhouse_user default -F json | jq -r '.public_key')
 echo "# Getting $inhouse_user's config from in-house Chef server"
-ssh chef.marchex.com "sudo chef-server-ctl user-show $inhouse_user -F json" | jq ".public_key = \"$mytempkey\"" > $inhouse_user.json
+ssh chefserver1.aws-us-west-2-vpc2.marchex.com "sudo chef-server-ctl user-show $inhouse_user -F json" | jq ".public_key = \"$mytempkey\"" > $inhouse_user.json
 echo "# Copying $inhouse_user's config to in-house Chef server"
-scp $inhouse_user.json chef.marchex.com:
+scp $inhouse_user.json chefserver1.aws-us-west-2-vpc2.marchex.com:
 echo "# Setting $inhouse_user's key on in-house Chef server"
-ssh chef.marchex.com "sudo chef-server-ctl user-edit $inhouse_user -i $inhouse_user.json"
+ssh chefserver1.aws-us-west-2-vpc2.marchex.com "sudo chef-server-ctl user-edit $inhouse_user -i $inhouse_user.json"
 echo "# Cleaning up files"
-ssh chef.marchex.com "rm $inhouse_user.json"
+ssh chefserver1.aws-us-west-2-vpc2.marchex.com "rm $inhouse_user.json"
 rm $inhouse_user.json
