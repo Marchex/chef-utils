@@ -104,7 +104,7 @@ This generates a `delivery_backup.tgz` tarball in a timestamped /var/tmp folder,
 ### Restore - Delivery server
 1. SSH to delivery server
 ** WARNING: This command will overwrite all existing data on a running delivery server **
-2. Run `sudo deliver-ctl restore-data -B /path/to/delivery_backup.tgz`
+2. Run `sudo delivery-ctl restore-data -B /path/to/delivery_backup.tgz`
 
 ## Supermarket server
 
