@@ -20,8 +20,8 @@ Assumptions made in this document:
 HOST=qa-chefserver1.aws-us-west-2-vpc4.marchex.com
 INSTANCE_ID=`aws ec2 describe-instances --region us-west-2 --query 'Reservations[*].Instances[*].InstanceId' --output text --filters "Name=tag:Name,Values=$HOST"`
 # Create and tag AMI
-AMI_ID=`aws ec2 create-image --region us-west-2 --output text --instance-id $INSTANCE_ID --description "Image created from $HOST" --name "chef-delivery-qa-$(date +%F)"`
-aws ec2 create-tags --region us-west-2 --resources $AMI_ID --tags Key=creator,Value="$USER" Key=project,Value='Chef' Key=team,Value='Tools' --name "chef-server-qa-$(date +%F)"
+AMI_ID=`aws ec2 create-image --region us-west-2 --output text --instance-id $INSTANCE_ID --description "Image created from $HOST" --name "chef-server-qa-$(date +%F)"`
+aws ec2 create-tags --region us-west-2 --resources $AMI_ID --tags Key=creator,Value="$USER" Key=project,Value='Chef' Key=team,Value='Tools' Key=Name,Value="chef-server-qa-$(date +%F)"
 ```
 
 2. Repeat for all of the chef server types (currently: chef server, delivery, and supermarket, replacing HOST with their hostname)
