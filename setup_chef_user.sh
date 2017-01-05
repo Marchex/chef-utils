@@ -6,7 +6,7 @@ if [[ -z "$dk_user" ]]; then
     exit 1
 fi
 
-echo "REQUREMENTS:"
+echo "REQUIREMENTS:"
 echo "  * User previously logged in to Chef"
 echo "  * Admin created user's account in Delivery, with LDAP auth and role 'admin'"
 echo ""
@@ -22,7 +22,7 @@ ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl org-user-add
 
 set +e
 echo "# Looking for $dk_user in Delivery"
-found=$(ssh chefdelivery1.aws-us-west-2-vpc2.marchex.com delivery-ctl list-users marchex | grep -c "$dk_user")
+found=$(ssh chefdelivery1.aws-us-west-2-vpc2.marchex.com sudo automate-ctl list-users marchex | grep -c "$dk_user")
 if [[ "$found" == "1" ]]; then
     echo "User found"
 else
@@ -30,6 +30,3 @@ else
     exit 1
 fi
 
-set -e
-echo "# Linking $dk_user in Delivery to $dk_user in GitHub"
-ssh chefdelivery1.aws-us-west-2-vpc2.marchex.com sudo delivery-ctl link-github-enterprise-user marchex "$dk_user" "$dk_user"
