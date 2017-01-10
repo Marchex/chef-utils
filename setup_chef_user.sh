@@ -38,6 +38,10 @@ echo "# Adding $dk_user to 'marchex' org in Chef"
 ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl org-user-add marchex "$dk_user"
 
 set -e
+echo "# Verifying Delivery API is working"
+delivery token --verify
+
+set -e
 echo "# Looking for $dk_user in Delivery"
 # we can use the delivery api to do this.  this is not a public API, so we
 # shouldn't do it. but ... whatever.  if it breaks we can fix.  that is why
