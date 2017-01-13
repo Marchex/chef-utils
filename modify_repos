@@ -1,0 +1,315 @@
+#!/usr/local/bin/perl
+use warnings;
+use strict;
+use feature ':5.10';
+
+use Data::Dumper; $Data::Dumper::Sortkeys=1;
+use Date::Format;
+use JSON::XS 'decode_json';
+use Marchex::Client::GitHub;
+use Marchex::OpenURL 'open_url';
+use File::Temp;
+
+our($gh, $config) = init();
+our $found_repos = find_repos();
+modify_repos();
+print "Done.\n";
+
+
+########################################
+
+sub do_die {
+    my(@args) = @_;
+    print STDERR @args, "\n";
+    exit -1;
+}
+
+sub do_system {
+    my($cmd, $nofail) = @_;
+    print "* $cmd\n";
+    my $ret = system($cmd);
+    if ($nofail && $ret) {
+        print STDERR "(ignore any above errors)";
+        return;
+    }
+    do_die "system '$cmd' failed: $ret : $?" if $ret != 0;
+    if ($? == -1) {
+        do_die "failed to execute: $!";
+    }
+    elsif ($? & 127) {
+        do_die sprintf "child died with signal %d, %s coredump",
+            ($? & 127),  ($? & 128) ? 'with' : 'without';
+    }
+}
+
+########################################
+
+sub modify_repos {
+    for my $repo (@$found_repos) {
+        checkout_repo($repo);
+        make_changes($repo) or next;  # no changes!
+        bump_metadata($repo);
+        finish_changes($repo);
+    }
+}
+
+sub wait_for_pr {
+    my($repo, $pr) = @_;
+
+    print "Waiting for pull request $pr->{html_url} ...\n";
+    open_url($pr->{html_url});
+
+    # this makes it the "combined status" API
+    (my $status_url = $pr->{statuses_url}) =~ s|/statuses/|/status/|;
+    my $iter = 0;
+    while (1) {
+        my($status) = $gh->{api}->command(GET => $status_url);
+        if (!$status) {
+            warn "Could not get status for pull request, skipping\n";
+            last;
+        }
+        elsif ($status->{state} eq 'pending') {
+            print "Waiting for pull request status to go green ...\n" if $iter =~ /0$/;
+            $iter++;
+        }
+        elsif ($status->{state} eq 'failure') {
+            warn "Pull request status failed\n";
+            last;
+        }
+        elsif ($status->{state} eq 'success') {
+            print "Pull request status succeeded\n";
+            last;
+        }
+
+        sleep 6;
+    }
+}
+
+sub finish_changes {
+    my($repo) = @_;
+    my $message = "modify_repos $config->{branch_name}";
+
+    do_system "git commit -m '$message'";
+    do_system "git --no-pager log --stat -p -1";
+
+    if (! $gh->{test_only}) {
+        my $push_and_pr = 1;
+        if ($gh->{ask_first}) {
+            local $| = 1;
+            print "Push and make pull request for $config->{org}/$repo->{name}? [Yn] ";
+            chomp(my $ans = <>);
+            if ($ans =~ /^n/i) {
+                $push_and_pr = 0;
+            }
+        }
+
+        if ($push_and_pr) {
+            do_system "git push";
+
+            my $pr = $gh->{api}->command(POST => "/repos/$config->{org}/$repo->{name}/pulls", {
+                title => $message,
+                head  => $config->{branch_name},
+                base  => 'master'
+            });
+            if ($pr) {
+                wait_for_pr($repo, $pr) if $gh->{wait_for_pr};
+            }
+            else {
+                warn "Could not create a pull request; please go to $repo->{html_url} to continue\n";
+            }
+        }
+    }
+
+    print "\n\n";
+}
+
+sub checkout_repo {
+    my($repo) = @_;
+    chdir $config->{dir};
+    $repo->{_local_dir} = "$config->{dir}/$repo->{name}";
+    print "\n====>  $repo->{_local_dir}\n";
+
+    do_system "git clone $repo->{ssh_url}";
+    chdir $repo->{_local_dir};
+    do_system "git checkout -b $config->{branch_name}";
+}
+
+sub find_repos {
+    my @found_repos;
+    my $repos = $gh->{api}->command(GET => "/orgs/$config->{org}/repos");
+    REPO: for my $repo (@$repos) {
+        for my $name (@{ $config->{repos} }) {
+            if ($repo->{name} eq $name) {
+                push @found_repos, $repo;
+                next REPO;
+            }
+        }
+
+        for my $match (@{ $config->{repo_matches} }) {
+            if ($repo->{name} =~ $match) {
+                push @found_repos, $repo;
+                next REPO;
+            }
+        }
+    }
+
+    if (!@found_repos) {
+        die "No repositories found to modify.\n";
+    }
+
+    return [ sort { $a->{name} cmp $b->{name} } @found_repos ];
+}
+
+########################################
+
+sub bump_metadata {
+    my($repo) = @_;
+
+    change_modify($repo, {
+        file            => 'metadata.rb',
+        action          => 'modify',
+        modifications   => [
+            {
+                search      => '(?m-xis:^(version\s+.*\d+\.\d+\.)(\d+)(.*)$)',
+                replace     => '$1 . ($2 + 1) . $3',
+                modifiers   => 'e'
+            }
+        ]
+    });
+}
+
+sub change_delete {
+    my($repo, $change) = @_;
+
+    unless (-f $change->{file}) {
+        warn "No '$change->{file}' file found, skipping\n";
+        return;
+    }
+
+    do_system "git rm $change->{file}";
+}
+
+sub change_create {
+    my($repo, $change) = @_;
+
+    open my $fh, '>', $change->{file};
+    print $fh $change->{content};
+    close $fh;
+
+    do_system "git add $change->{file}";
+}
+
+sub change_modify {
+    my($repo, $change) = @_;
+
+    unless (-f $change->{file}) {
+        warn "No '$change->{file}' file found, skipping\n";
+        return;
+    }
+
+    open my $fh, '<', $change->{file} or die "Cannot open '$change->{file}' for reading";
+    my $content = join '', <$fh>;
+    close $fh;
+
+    for my $modification (@{ $change->{modifications} }) {
+        die "Need 'search' regex and 'replace' string for each modification"
+            unless defined $modification->{search} && defined $modification->{replace};
+
+        my $search  = qr/$modification->{search}/;
+        $modification->{modifiers} //= '';
+
+        #print "\$content =~ s/$search/$modification->{replace}/$modification->{modifiers}\n";
+        eval "\$content =~ s/$search/$modification->{replace}/$modification->{modifiers}";
+    }
+
+    open $fh, '>', $change->{file} or die "Cannot open '$change->{file}' for writing";
+    print $fh $content;
+    close $fh;
+
+    do_system "git add $change->{file}";
+}
+
+sub make_changes {
+    my($repo) = @_;
+    for my $change (@{ $config->{changes} }) {
+        if ($change->{action} eq 'delete') {
+            change_delete($repo, $change);
+        }
+        elsif ($change->{action} eq 'create') {
+            change_create($repo, $change);
+        }
+        elsif ($change->{action} eq 'modify') {
+            change_modify($repo, $change);
+        }
+    }
+
+    chomp(my $changed = `git status --porcelain`);
+    if ($changed) {
+        return 1;
+    }
+    else {
+        print "No changes in $repo->{name}; skipping\n";
+        return 0;
+    }
+}
+
+########################################
+
+sub init {
+    my $gh = Marchex::Client::GitHub->init(
+        'o|open_url'        => 'open_url',
+        'A|ask_first'       => 'ask_first',
+        'W|wait_for_pr'     => 'wait_for_pr',
+        'n|test_only'       => 'test_only'
+    );
+
+    my $input = join '', <>;
+    my $data = decode_json($input);
+
+    my $config;
+    my $date = 
+    $config->{branch_name}  = $data->{branch_name}  //= "$ENV{USER}-modify-repos-" . time2str('%Y%m%dT%H%M%S', time);
+    $config->{org}          = $data->{org}          //= 'marchex-chef';
+    $config->{repos}        = $data->{repos}        //= [];
+    $config->{repo_matches} = $data->{repo_matches} //= ['^(mchx|hostclass|role|foo|pop)_'];
+    $config->{changes}      = $data->{changes} or die "No 'changes' provided in JSON";
+
+    for my $match (@{ $config->{repo_matches} }) {
+        $match = qr{$match};
+    }
+
+    $config->{dir} = File::Temp->newdir();
+    $gh->{org} = $config->{org};
+
+    return($gh, $config);
+}
+
+
+__END__
+
+Example JSON file:
+
+{
+    "branch_name": "fix-some-stuff",
+    "changes": [
+        {
+            "file": "foo.md",
+            "action": "create",
+            "content": "# foo!\\nthis is a test.\\n"
+        },
+        {
+            "file": "foodcritic_rules.rb",
+            "action": "delete"
+        },
+        {
+            "file": "Jenkinsfile",
+            "action": "modify",
+            "modifications": [
+                {
+                    "search": "\\n[\\t\\s]*currentBuild.result = \"SUCCESS\"\\s*\\n",
+                    "replace": "\\n"
+                }
+            ]
+        }
+    ]
+}
