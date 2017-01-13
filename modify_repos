@@ -97,21 +97,27 @@ sub wait_for_pr {
     (my $status_url = $pr->{statuses_url}) =~ s|/statuses/|/status/|;
     my $iter = 0;
     while (1) {
+        $pr = $gh->{api}->command(GET => $pr->{url});
+        if ($pr->{state} eq 'closed') {
+            warn "Pull request has been closed\n";
+            last;
+        }
+
         my($status) = $gh->{api}->command(GET => $status_url);
         if (!$status) {
             warn "Could not get status for pull request, skipping\n";
             last;
         }
         elsif ($status->{state} eq 'pending') {
-            print "Waiting for pull request status to go green ...\n" if $iter =~ /0$/;
+            print "Pull request status: pending ...\n" if $iter =~ /0$/;
             $iter++;
         }
         elsif ($status->{state} eq 'failure') {
-            warn "Pull request status failed\n";
+            warn "Pull request status: failure\n";
             last;
         }
         elsif ($status->{state} eq 'success') {
-            print "Pull request status succeeded\n";
+            print "Pull request status: success\n";
             last;
         }
 
