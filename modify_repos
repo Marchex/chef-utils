@@ -42,6 +42,14 @@ sub do_system {
     }
 }
 
+sub do_prompt {
+    my($prompt) = @_;
+    local $| = 1;
+    print $prompt;
+    chomp(my $ans = <>);
+    return $ans;
+}
+
 ########################################
 
 sub modify_repos {
@@ -57,7 +65,7 @@ sub wait_for_pr {
     my($repo, $pr) = @_;
 
     print "Waiting for pull request $pr->{html_url} ...\n";
-    open_url($pr->{html_url});
+    open_url($pr->{html_url}) if $gh->{open_url};
 
     # this makes it the "combined status" API
     (my $status_url = $pr->{statuses_url}) =~ s|/statuses/|/status/|;
@@ -95,27 +103,42 @@ sub finish_changes {
     if (! $gh->{test_only}) {
         my $push_and_pr = 1;
         if ($gh->{ask_first}) {
-            local $| = 1;
-            print "Push and make pull request for $config->{org}/$repo->{name}? [Yn] ";
-            chomp(my $ans = <>);
+            my $ans = do_prompt("Push and make pull request for $config->{org}/$repo->{name}? [Yn] ");
             if ($ans =~ /^n/i) {
                 $push_and_pr = 0;
             }
         }
 
         if ($push_and_pr) {
-            do_system "git push";
-
-            my $pr = $gh->{api}->command(POST => "/repos/$config->{org}/$repo->{name}/pulls", {
-                title => $message,
-                head  => $config->{branch_name},
-                base  => 'master'
+            my $prs = $gh->{api}->command(GET => "/repos/$config->{org}/$repo->{name}/pulls", {
+                head => "$config->{org}:$config->{branch_name}"
             });
-            if ($pr) {
-                wait_for_pr($repo, $pr) if $gh->{wait_for_pr};
+            if (@$prs) {
+                if ($gh->{ask_first}) {
+                    my $ans = do_prompt("Found existing pull request for this branch ($prs->[0]{html_url}).\nStill push and make pull request? [Yn] ");
+                    if ($ans =~ /^n/i) {
+                        $push_and_pr = 0;
+                    }
+                }
+                else {
+                    $push_and_pr = 0;
+                }
             }
-            else {
-                warn "Could not create a pull request; please go to $repo->{html_url} to continue\n";
+
+            if ($push_and_pr) {
+                do_system "git push";
+
+                my $pr = $gh->{api}->command(POST => "/repos/$config->{org}/$repo->{name}/pulls", {
+                    title => $message,
+                    head  => $config->{branch_name},
+                    base  => 'master'
+                });
+                if ($pr) {
+                    wait_for_pr($repo, $pr) if $gh->{wait_for_pr};
+                }
+                else {
+                    warn "Could not create a pull request; please go to $repo->{html_url} to continue\n";
+                }
             }
         }
     }
