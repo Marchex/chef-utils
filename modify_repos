@@ -3,6 +3,32 @@ use warnings;
 use strict;
 use feature ':5.10';
 
+########################################
+# modify_repos requires Marchex::Client::GitHub and Marchex::OpenURL,
+# which are found in github-api-tools.  just install that project.
+#
+# this program does mass modifications to GitHub repos,
+# in particular Chef Cookbook repos.  it accepts a JSON file as
+# input, defining the changes to make.  see example JSON file at
+# bottom of this program.
+#
+# * finds all repos in a specific org matching regexes (or explicit names)
+# * creates a temp dir
+# * alphabetically loops over the repos:
+#   * checks repo out to temp dir
+#   * creates new branch with specified name
+#   * makes specified changes (delete file, create file, modify file)
+#   * adds changes to branch
+#   * if no changes, go to next repo
+#   * commit changes
+#   * print diff of changes
+#   * optionally ask user whether to push changes
+#   * bump metadata version
+#   * push changes
+#   * create pull request (optionally open PR in browser window)
+#   * optionally wait for PR status to go "green" before continuing to next repo
+
+
 use Data::Dumper; $Data::Dumper::Sortkeys=1;
 use Date::Format;
 use JSON::XS 'decode_json';
