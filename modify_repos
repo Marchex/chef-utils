@@ -91,7 +91,6 @@ sub wait_for_pr {
     my($repo, $pr) = @_;
 
     print "Waiting for pull request $pr->{html_url} ...\n";
-    open_url($pr->{html_url}) if $gh->{open_url};
 
     # this makes it the "combined status" API
     (my $status_url = $pr->{statuses_url}) =~ s|/statuses/|/status/|;
@@ -166,6 +165,7 @@ sub finish_changes {
                     base  => 'master'
                 });
                 if ($pr) {
+                    open_url($pr->{html_url}) if $gh->{open_url};
                     wait_for_pr($repo, $pr) if $gh->{wait_for_pr};
                 }
                 else {
@@ -284,6 +284,13 @@ sub change_modify {
     do_system "git add $change->{file}";
 }
 
+sub change_patch {
+    my($repo, $change) = @_;
+
+    do_system "git apply -v --stat --apply $change->{patchfile}";
+    do_system "git add -u";
+}
+
 sub make_changes {
     my($repo) = @_;
     for my $change (@{ $config->{changes} }) {
@@ -295,6 +302,9 @@ sub make_changes {
         }
         elsif ($change->{action} eq 'modify') {
             change_modify($repo, $change);
+        }
+        elsif ($change->{action} eq 'patch') {
+            change_patch($repo, $change);
         }
     }
 
@@ -365,6 +375,10 @@ Example JSON file:
                     "replace": "\\n"
                 }
             ]
+        },
+        {
+            "action": "patch",
+            "patchfile": "/Users/cnandor/src/marchex-chef/cookbooks/mchx_auditd/0001.patch"
         }
     ]
 }
