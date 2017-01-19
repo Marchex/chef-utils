@@ -287,7 +287,7 @@ sub change_modify {
 sub change_patch {
     my($repo, $change) = @_;
 
-    do_system "git apply -v --stat --apply $change->{patchfile}";
+    do_system "git apply -v --stat --apply --reject $change->{patchfile} || true";
     do_system "git add -u";
 }
 
