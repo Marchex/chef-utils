@@ -1,4 +1,6 @@
-#!/usr/local/bin/perl
+#!/site/perl/perl-5.10.1-1/bin/perl
+use lib '/site/marchex/lib/perl';
+use lib '/site/github-api-tools/lib';
 use warnings;
 use strict;
 use feature ':5.10';
@@ -157,7 +159,7 @@ sub finish_changes {
             }
 
             if ($push_and_pr) {
-                do_system "git push";
+                do_system "git push origin $config->{branch_name}";
 
                 my $pr = $gh->{api}->command(POST => "/repos/$config->{org}/$repo->{name}/pulls", {
                     title => $message,
