@@ -3,7 +3,6 @@ dk_user=$1
 ssh_pub_key_file=$2
 
 echo "REQUIREMENTS:"
-echo "  * User previously logged in to Chef"
 echo "  * Admin created user's account in Delivery, with LDAP auth and role 'admin'"
 echo ""
 echo "OPTIONAL:"
@@ -32,10 +31,17 @@ set -e
 echo "# Verifying Delivery API is working"
 delivery token --verify
 
-set -e
+set +e
 echo "# Looking for $dk_user in Chef"
 ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl user-show "$dk_user" >/dev/null
-echo "User found"
+if [[ -z "$?" ]]; then
+    echo "User found"
+else
+    set -e
+    ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl user-create "$dk_user" User Name "$dk_user@marchex.com" nopass >"$dk_user.pem"
+    echo "User created: '$dk_user.pem' written (send this file to $dk_user@marchex.com !)"
+fi
+
 
 set -e
 echo "# Adding $dk_user to 'marchex' org in Chef"
@@ -43,6 +49,9 @@ ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl org-user-add
 
 set -e
 echo "# Looking for $dk_user in Delivery"
+# ideally we could create the user from the CLI, but automate/delivery doesn't
+# allow us to create an LDAP user from CLI, apparently.
+
 # we can use the delivery api to do this.  this is not a public API, so we
 # shouldn't do it. but ... whatever.  if it breaks we can fix.  that is why
 # we are leaving the ssh method commented out, in case we need it again.
