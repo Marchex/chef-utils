@@ -34,7 +34,7 @@ delivery token --verify
 set +e
 echo "# Looking for $dk_user in Chef"
 ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl user-show "$dk_user" >/dev/null
-if [[ -z "$?" ]]; then
+if [[ "$?" == 0 ]]; then
     echo "User found"
 else
     set -e
@@ -42,10 +42,14 @@ else
     echo "User created: '$dk_user.pem' written (send this file to $dk_user@marchex.com !)"
 fi
 
-
 set -e
 echo "# Adding $dk_user to 'marchex' org in Chef"
-ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl org-user-add marchex "$dk_user"
+ssh chefserver1.aws-us-west-2-vpc2.marchex.com sudo chef-server-ctl org-user-add marchex "$dk_user" --admin
+
+set -e
+echo "# Adding $dk_user to vaults in Chef"
+knife vault update escrow certificates -A "$dk_user"
+
 
 set -e
 echo "# Looking for $dk_user in Delivery"
