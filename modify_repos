@@ -128,9 +128,8 @@ sub wait_for_pr {
 
 sub finish_changes {
     my($repo) = @_;
-    my $message = "modify_repos $config->{branch_name}";
 
-    do_system "git commit -m '$message'";
+    do_system "git commit -m '$config->{message}'";
     do_system "git --no-pager log --stat -p -1";
 
     if (! $gh->{test_only}) {
@@ -162,7 +161,7 @@ sub finish_changes {
                 do_system "git push origin $config->{branch_name}";
 
                 my $pr = $gh->{api}->command(POST => "/repos/$config->{org}/$repo->{name}/pulls", {
-                    title => $message,
+                    title => $config->{message},
                     head  => $config->{branch_name},
                     base  => 'master'
                 });
@@ -336,6 +335,7 @@ sub init {
     my $config;
     my $date = 
     $config->{branch_name}  = $data->{branch_name}  //= "$ENV{USER}-modify-repos-" . time2str('%Y%m%dT%H%M%S', time);
+    $config->{message}      = "modify_repos $config->{branch_name}";
     $config->{org}          = $data->{org}          //= 'marchex-chef';
     $config->{repos}        = $data->{repos}        //= [];
     $config->{repo_matches} = $data->{repo_matches} //= ['^(mchx|hostclass|role|foo|pop)_'];
