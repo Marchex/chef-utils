@@ -119,17 +119,31 @@ sub wait_for_pr {
         }
         elsif ($status->{state} eq 'success') {
             print "Pull request status: success\n";
+
+            print "Merging branch to master ...\n";
+            my($merge) = $gh->{api}->command(PUT => $pr->{url} . '/merge');
+            if (!$merge->{merged}) {
+                warn "Could not merge pull request: $merge->{message}\n";
+                last;
+            }
+
+            print "Deleting branch ...\n";
+            (my $git_refs = $repo->{git_refs_url}) =~ s|\{/sha\}$||;
+            $gh->{api}->command(DELETE => $git_refs . "/heads/$config->{branch_name}");
+
+            print "Done.\n";
             last;
         }
 
         sleep 6;
     }
+
 }
 
 sub finish_changes {
     my($repo) = @_;
 
-    do_system "git commit -m '$config->{message}'";
+    do_system "git commit -m \Q$config->{message}\E";
     do_system "git --no-pager log --stat -p -1";
 
     if (! $gh->{test_only}) {
@@ -166,8 +180,13 @@ sub finish_changes {
                     base  => 'master'
                 });
                 if ($pr) {
-                    open_url($pr->{html_url}) if $gh->{open_url};
-                    wait_for_pr($repo, $pr) if $gh->{wait_for_pr};
+                    if (-e 'Jenkinsfile') {
+                        open_url($pr->{html_url}) if $gh->{open_url};
+                        wait_for_pr($repo, $pr) if $gh->{wait_for_pr};
+                    }
+                    else {
+                        warn "No Jenkinsfile; not waiting for PR to go green\n";
+                    }
                 }
                 else {
                     warn "Could not create a pull request; please go to $repo->{html_url} to continue\n";
@@ -191,6 +210,7 @@ sub checkout_repo {
 }
 
 sub find_repos {
+    print "Finding repos ...\n";
     my @found_repos;
     my $repos = $gh->{api}->command(GET => "/orgs/$config->{org}/repos");
     REPO: for my $repo (@$repos) {
@@ -212,6 +232,8 @@ sub find_repos {
     if (!@found_repos) {
         die "No repositories found to modify.\n";
     }
+
+    printf "Found %d repos ...\n", scalar(@found_repos);
 
     return [ sort { $a->{name} cmp $b->{name} } @found_repos ];
 }
@@ -313,6 +335,10 @@ sub make_changes {
     if ($changed) {
         return 1;
     }
+    elsif ($gh->{force_change}) {
+        print "No changes in $repo->{name}; bumping version anyway due to --force_change\n";
+        return 1;
+    }
     else {
         print "No changes in $repo->{name}; skipping\n";
         return 0;
@@ -323,23 +349,30 @@ sub make_changes {
 
 sub init {
     my $gh = Marchex::Client::GitHub->init(
-        'o|open_url'        => 'open_url',
-        'A|ask_first'       => 'ask_first',
-        'W|wait_for_pr'     => 'wait_for_pr',
-        'n|test_only'       => 'test_only'
+        'o|open_url'            => 'open_url',
+        'A|ask_first'           => 'ask_first',
+        'W|wait_for_pr'         => 'wait_for_pr',
+        'n|test_only'           => 'test_only',
+        'm|commit_message=s'    => 'commit_message',
+        'f|force_change'        => 'force_change',
+        'b|branch_name=s'       => 'branch_name'
     );
 
+    my $config = {};
     my $input = join '', <>;
-    my $data = decode_json($input);
+    my $data = decode_json($input); # if no config, and using -f, then just call `echo '{}' | modify_repos ...`
 
-    my $config;
-    my $date = 
-    $config->{branch_name}  = $data->{branch_name}  //= "$ENV{USER}-modify-repos-" . time2str('%Y%m%dT%H%M%S', time);
-    $config->{message}      = "modify_repos $config->{branch_name}";
+    if (!$data->{changes} && !$gh->{force_change}) {
+        die "No 'changes' provided in JSON";
+    }
+
+
+    $config->{branch_name}  = $gh->{branch_name}    //= $data->{branch_name} //= "$ENV{USER}-modify-repos-" . time2str('%Y%m%dT%H%M%S', time);
+    $config->{message}      = $gh->{commit_message} //= $data->{commit_message} // "modify_repos $config->{branch_name}";
     $config->{org}          = $data->{org}          //= 'marchex-chef';
     $config->{repos}        = $data->{repos}        //= [];
-    $config->{repo_matches} = $data->{repo_matches} //= ['^(mchx|hostclass|role|foo|pop)_'];
-    $config->{changes}      = $data->{changes} or die "No 'changes' provided in JSON";
+    $config->{repo_matches} = $data->{repo_matches} //= ['^bind$', '^(mchx|hostclass|role|foo|pop)_'];
+    $config->{changes}      = $data->{changes}      //= [];
 
     for my $match (@{ $config->{repo_matches} }) {
         $match = qr{$match};
@@ -350,7 +383,6 @@ sub init {
 
     return($gh, $config);
 }
-
 
 __END__
 

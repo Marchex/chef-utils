@@ -10,7 +10,8 @@ if [[ -z "$repo" ]]; then
     exit 1
 fi
 
-set -e
+set +e
+set -x
 
 knife supermarket unshare ${repo} --supermarket-site https://supermarket.marchex.com -V -y
 knife cookbook delete ${repo} -a -V -y
