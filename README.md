@@ -24,7 +24,7 @@ AMI_ID=`aws ec2 create-image --region us-west-2 --output text --instance-id $INS
 aws ec2 create-tags --region us-west-2 --resources $AMI_ID --tags Key=creator,Value="$USER" Key=project,Value='Chef' Key=team,Value='Tools' Key=Name,Value="chef-server-qa-$(date +%F)"
 ```
 
-2. Repeat for all of the chef server types (currently: chef server, delivery, and supermarket, replacing HOST with their hostname)
+2. Repeat for all of the chef server types (currently: chef server and supermarket, replacing HOST with their hostname)
 
 ## Launching instances from new AMIs
 
@@ -39,12 +39,12 @@ aws ec2 create-tags --region us-west-2 --resources $AMI_ID --tags Key=creator,Va
 
 Unless you are bringing up hosts with the same hostname (and using the same ELBs), you will need to make configuration changes on the instances created from those AMIs in order to get them to work.
 
-For example, if you're creating `qa-{chef,delivery,supermarket}.marchex.com` from AMIs generated from servers configured to live on `{chef,delivery,supermarket}.marchex.com`, you'll want to find all configuration files that might need to be changed.
+For example, if you're creating `qa-{chef,supermarket}.marchex.com` from AMIs generated from servers configured to live on `{chef,supermarket}.marchex.com`, you'll want to find all configuration files that might need to be changed.
 
 1. Find configuration files that may need to be changed:
 ```
 # Find all files in /etc/opscode* directories that reference the FQDNs we care about
-FQDNS='chef.marchex.com delivery.marchex.com supermarket.marchex.com'
+FQDNS='chef.marchex.com supermarket.marchex.com'
 for fqdn in $FQDNS; do
   echo "Looking for $fqdn in chef config files..."
   find $(find /etc/ -maxdepth 1 -type d -name "opscode*") -type f -not -name "*-running.json" -print0 |xargs -0 -I{} grep $fqdn {} /dev/null
@@ -61,7 +61,6 @@ done
 
       sudo opscode-push-jobs-server-ctl reconfigure
       ```
-    * delivery server: `sudo delivery-ctl reconfigure`
     * supermarket server: `sudo supermarket-ctl reconfigure`
 
 ## Placing new instances in service
@@ -90,21 +89,6 @@ This generates a timestamped tarball in `/var/opt/chef-backup/`, which must be k
 ** WARNING: This command will overwrite all existing data on a running chef server **
 2. Run `sudo chef-server-ctl restore /var/opt/chef-backup/<path-to-desired-backup.tgz>`
 3. Reconfigure all services as described at the end of the [Adjusting configuration...](#adjusting-configuration-on-the-new-chef-servers) section.
-
-## Delivery server
-
-Based on the [delivery-ctl documentation](https://docs.chef.io/ctl_delivery_server.html)
-
-### Backup - Delivery server
-1. SSH to delivery server
-2. Run `sudo delivery-ctl backup-data` -- this does not take down the server, and takes only seconds
-
-This generates a `delivery_backup.tgz` tarball in a timestamped /var/tmp folder, which must be moved somewhere and kept safe.
-
-### Restore - Delivery server
-1. SSH to delivery server
-** WARNING: This command will overwrite all existing data on a running delivery server **
-2. Run `sudo delivery-ctl restore-data -B /path/to/delivery_backup.tgz`
 
 ## Supermarket server
 
