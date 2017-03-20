@@ -259,12 +259,22 @@ sub bump_metadata {
 sub change_delete {
     my($repo, $change) = @_;
 
-    unless (-f $change->{file}) {
-        warn "No '$change->{file}' file found, skipping\n";
+    if ($change->{file} && $change->{directory}) {
+        die "Cannot specify both 'file' ($change->{file}) and 'directory' ($change->{directory}) for a deletion\n";
+    }
+
+    unless (($change->{file} && -f $change->{file}) || ($change->{directory} && -d $change->{directory})) {
+        my $change_file = $change->{file} || $change->{directory};
+        warn "No '$change_file' found, skipping\n";
         return;
     }
 
-    do_system "git rm $change->{file}";
+    if ($change->{directory} && -d $change->{directory}) {
+        do_system "git rm -r $change->{directory}";
+    }
+    else {
+        do_system "git rm $change->{file}";
+    }
 }
 
 sub change_create {
