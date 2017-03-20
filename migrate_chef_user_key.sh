@@ -17,7 +17,7 @@ fi
 
 echo 'REQUREMENTS:'
 echo '  * User has accounts on both out-house, and in-house, Chef server'
-echo '  * User wants to used key from out-house Chef, for in-house Chef'
+echo '  * User wants to use key from out-house Chef, for in-house Chef'
 echo '  * `knife_hosted` command is configured to use out-house Chef'
 #echo '  * `knife_prem` command is configured to use in-house Chef'
 echo ''
