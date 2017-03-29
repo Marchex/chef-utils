@@ -1,25 +1,13 @@
 #!/bin/bash
 dk_user=$1
-ssh_pub_key_file=$2
 
 chef_server=chefserver1.aws-us-west-2-vpc2.marchex.com
 
-usage="Usage: $0 [Marchex user name] [ssh pub key file (optional)]"
+usage="Usage: $0 [Marchex user name]"
 
 if [[ -z "$dk_user" ]]; then
     echo $usage
     exit 1
-fi
-
-set -e
-if [[ -z "$ssh_pub_key_file" ]]; then
-    read -p 'Continue without user SSH public key? [yN] ' yn
-    case $yn in
-      [Yy]* ) ssh_pub_key='';;
-          * ) echo $usage; exit;;
-    esac
-else
-    ssh_pub_key=$(cat $ssh_pub_key_file)
 fi
 
 set +e
@@ -34,8 +22,9 @@ else
 fi
 
 set -e
-echo "# Adding $dk_user to 'marchex' org in Chef"
+echo "# Adding $dk_user to 'marchex' and 'outhouse' orgs in Chef"
 ssh "$chef_server" sudo chef-server-ctl org-user-add marchex "$dk_user" --admin
+ssh "$chef_server" sudo chef-server-ctl org-user-add outhouse "$dk_user" --admin
 
 set -e
 echo "# Adding $dk_user to vaults in Chef"
