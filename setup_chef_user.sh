@@ -28,6 +28,7 @@ ssh "$chef_server" sudo chef-server-ctl org-user-add outhouse "$dk_user" --admin
 
 set -e
 echo "# Adding $dk_user to vaults in Chef"
-knife vault update escrow certificates -A "$dk_user"
+knife vault update escrow certificates -A "$dk_user" -s https://chef.marchex.com/organizations/marchex
+knife vault update escrow certificates -A "$dk_user" -s https://chef.marchex.com/organizations/outhouse
 
 echo "Complete!"
