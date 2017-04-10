@@ -97,42 +97,53 @@ sub wait_for_pr {
     # this makes it the "combined status" API
     (my $status_url = $pr->{statuses_url}) =~ s|/statuses/|/status/|;
     my $iter = 0;
+    my $master = 0;
     while (1) {
-        $pr = $gh->{api}->command(GET => $pr->{url});
-        if ($pr->{state} eq 'closed') {
-            warn "Pull request has been closed\n";
-            last;
+        unless ($master) {
+            $pr = $gh->{api}->command(GET => $pr->{url});
+            if ($pr->{state} eq 'closed') {
+                warn "Pull request has been closed\n";
+                last;
+            }
         }
 
         my($status) = $gh->{api}->command(GET => $status_url);
         if (!$status) {
-            warn "Could not get status for pull request, skipping\n";
+            warn "Could not get status for commit, skipping\n";
             last;
         }
         elsif ($status->{state} eq 'pending') {
-            print "Pull request status: pending ...\n" if $iter =~ /0$/;
+            print "Commit status: pending ...\n" if $iter =~ /0$/;
             $iter++;
         }
         elsif ($status->{state} eq 'failure') {
-            warn "Pull request status: failure\n";
+            warn "Commit status: failure\n";
             last;
         }
         elsif ($status->{state} eq 'success') {
-            print "Pull request status: success\n";
+            print "Commit status: success\n";
 
-            print "Merging branch to master ...\n";
-            my($merge) = $gh->{api}->command(PUT => $pr->{url} . '/merge');
-            if (!$merge->{merged}) {
-                warn "Could not merge pull request: $merge->{message}\n";
+            if ($master) {
+                print "Done.\n";
                 last;
             }
+            else {
+                print "Merging branch to master ...\n";
+                my($merge) = $gh->{api}->command(PUT => $pr->{url} . '/merge');
+                if (!$merge->{merged}) {
+                    warn "Could not merge pull request: $merge->{message}\n";
+                    last;
+                }
 
-            print "Deleting branch ...\n";
-            (my $git_refs = $repo->{git_refs_url}) =~ s|\{/sha\}$||;
-            $gh->{api}->command(DELETE => $git_refs . "/heads/$config->{branch_name}");
+                print "Deleting branch ...\n";
+                (my $git_refs = $repo->{git_refs_url}) =~ s|\{/sha\}$||;
+                $gh->{api}->command(DELETE => $git_refs . "/heads/$config->{branch_name}");
 
-            print "Done.\n";
-            last;
+                $master = 1;
+                $iter = 0;
+                print "Waiting for master status: $merge->{sha}\n";
+                $status_url = $pr->{base}{repo}{url} . '/commits/' . $merge->{sha} . '/status';
+            }
         }
 
         sleep 6;
@@ -175,7 +186,7 @@ sub finish_changes {
                 do_system "git push origin $config->{branch_name}";
 
                 my $pr = $gh->{api}->command(POST => "/repos/$config->{org}/$repo->{name}/pulls", {
-                    title => $config->{message},
+                    title => $config->{pr_message},
                     head  => $config->{branch_name},
                     base  => 'master'
                 });
@@ -362,6 +373,7 @@ sub init {
         'o|open_url'            => 'open_url',
         'A|ask_first'           => 'ask_first',
         'W|wait_for_pr'         => 'wait_for_pr',
+        'K|no_kitchen'          => 'no_kitchen',
         'n|test_only'           => 'test_only',
         'm|commit_message=s'    => 'commit_message',
         'f|force_change'        => 'force_change',
@@ -379,6 +391,7 @@ sub init {
 
     $config->{branch_name}  = $gh->{branch_name}    //= $data->{branch_name} //= "$ENV{USER}-modify-repos-" . time2str('%Y%m%dT%H%M%S', time);
     $config->{message}      = $gh->{commit_message} //= $data->{commit_message} // "modify_repos $config->{branch_name}";
+    $config->{pr_message}   = $gh->{no_kitchen} ? $config->{message} . ' no_kitchen' : $config->{message};
     $config->{org}          = $data->{org}          //= 'marchex-chef';
     $config->{repos}        = $data->{repos}        //= [];
     $config->{repo_matches} = $data->{repo_matches} //= ['^bind$', '^(mchx|hostclass|role|foo|pop)_'];
