@@ -1,7 +1,8 @@
 #!/bin/bash
 # you probably need to have the "delivery" chef creds to unshare/delete cookbook
 # (in .chef/knife.rb) and admin privileges to delete the repo from GitHub
-# set token in GITHUB_TOKEN, and GITHUB_HOST=github.marchex.com)
+# set token in GITHUB_TOKEN, and GITHUB_HOST=github.marchex.com), as well
+# as github-api-tools.  also, don't use this script, it's dangerous.
 
 repo=$1
 
