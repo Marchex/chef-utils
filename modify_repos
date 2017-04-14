@@ -317,8 +317,12 @@ sub change_modify {
         my $search  = qr/$modification->{search}/;
         $modification->{modifiers} //= '';
 
-        #print "\$content =~ s/$search/$modification->{replace}/$modification->{modifiers}\n";
-        eval "\$content =~ s/$search/$modification->{replace}/$modification->{modifiers}";
+        my $eval = "\$content =~ s/$search/$modification->{replace}/$modification->{modifiers}";
+        if ($modification->{unless}) {
+            $eval .= " unless \$content =~ /$modification->{unless}/";
+        }
+        #print $eval, "\n";
+        eval $eval;
     }
 
     open $fh, '>', $change->{file} or die "Cannot open '$change->{file}' for writing";
@@ -394,7 +398,7 @@ sub init {
     $config->{pr_message}   = $gh->{no_kitchen} ? $config->{message} . ' no_kitchen' : $config->{message};
     $config->{org}          = $data->{org}          //= 'marchex-chef';
     $config->{repos}        = $data->{repos}        //= [];
-    $config->{repo_matches} = $data->{repo_matches} //= ['^bind$', '^(mchx|hostclass|role|foo|pop)_'];
+    $config->{repo_matches} = $data->{repo_matches} //= ['^(bind|multipath)$', '^(mchx|hostclass|role|foo|pop)_'];
     $config->{changes}      = $data->{changes}      //= [];
 
     for my $match (@{ $config->{repo_matches} }) {
